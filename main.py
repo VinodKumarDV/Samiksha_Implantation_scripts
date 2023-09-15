@@ -1104,7 +1104,6 @@ def validateSheets(filePathAddObs, accessToken, parentFolder):
 
     return typeofSolution
 
-
 # function to upload criteria 
 def criteriaUpload(solutionName_for_folder_path, wbObservation, millisAddObs, accessToken, tabName, projectDrivenFlag):
     criteriaColNames = ["criteriaId", "criteria_name"]
@@ -4499,6 +4498,303 @@ def downloadlogosign(filePathAddProject,projectName_for_folder_path):
                 else:
                     print("--->Logos and signature downlading are failed(check if drive link are  Anyone with the link or not)<---")
 
+def mainFunc(mainFilePath,addObservationSolution, millisecond):
+    global scopeRoles, startDateOfResource,endDateOfResource, scopeEntities, scopeEntityType, recommendedFor
+    parentFolder = createFileStruct(mainFilePath,addObservationSolution)
+    accessToken = generateAccessToken(parentFolder)
+    typeofSolution = validateSheets(addObservationSolution,accessToken, parentFolder)
+    # sys.exit()
+    wbObservation = xlrd.open_workbook(addObservationSolution, on_demand=True)
+    if typeofSolution == 1:
+        ObservationSolutionCreationReqBody = {}
+        impLedObsFlag = False
+        criteriaUpload(parentFolder, wbObservation, millisecond, accessToken, "framework", impLedObsFlag)
+        
+        # userDetails = fetchUserDetails(environment, accessToken, dikshaLoginId)
+        # matchedShikshalokamLoginId = userDetails[0]
+        
+        frameworkExternalId = frameWorkUpload(parentFolder, wbObservation, millisecond, accessToken)
+        observationExternalId = frameworkExternalId + "-OBSERVATION-TEMPLATE"
+        themesUpload(parentFolder, wbObservation, millisecond, accessToken, frameworkExternalId, False)
+        solutionId = createSolutionFromFramework(parentFolder, accessToken, frameworkExternalId)
+
+        ecmsSheet = wbObservation.sheet_by_name('ECMs or Domains')
+        keys = [ecmsSheet.cell(1, col_index).value for col_index in range(ecmsSheet.ncols)]
+        ecm_update = dict()
+        ecm_dict = dict()
+        section = dict()
+        ecmSeqCount = 1
+        for row_index in range(2, ecmsSheet.nrows):
+            dictECMs = {keys[col_index]: ecmsSheet.cell(row_index, col_index).value for col_index in
+                        range(ecmsSheet.ncols)}
+            EMC_ID = dictECMs['ECM Id/Domian ID'].encode('utf-8').decode('utf-8').strip() + '_' + str(millisecond)
+            
+            ECM_NAME = dictECMs['ECM Name/Domain Name'].encode('utf-8').decode('utf-8').strip()
+            section.update({dictECMs['section_id']: dictECMs['section_name']})
+            ecm_sections[EMC_ID] = dictECMs['section_id']
+            if dictECMs['Is ECM Mandatory?']:
+                if dictECMs['Is ECM Mandatory?'] == "TRUE" or dictECMs['Is ECM Mandatory?'] == 1:
+                    dictECMs['Is ECM Mandatory?'] = False
+                elif dictECMs['Is ECM Mandatory?'] == "FALSE" or dictECMs['Is ECM Mandatory?'] == 0:
+                    dictECMs['Is ECM Mandatory?'] = True
+            else:
+                dictECMs['Is ECM Mandatory?'] = False
+            ecm_update[EMC_ID] = {
+                "externalId": EMC_ID, "tip": None, "name": ECM_NAME, "description": None,
+                "modeOfCollection": "onfield",
+                "canBeNotApplicable": dictECMs['Is ECM Mandatory?'],
+                "notApplicable": False, "canBeNotAllowed": dictECMs['Is ECM Mandatory?'],
+                "remarks": None,
+                "sequenceNo": ecmSeqCount
+                }
+            ecmSeqCount += 1
+        ecm_dict['evidenceMethods'] = ecm_update
+        bodySolutionUpdate = ecm_dict
+        solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        bodySolutionUpdate = {"sections": section}
+        solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        bodySolutionUpdate = {"status": "active", "isDeleted": False, "criteriaLevelReport": criteriaLevelsReport}
+        solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        excelBook = open_workbook(addObservationSolution)
+        questionUpload(addObservationSolution, parentFolder, frameworkExternalId, millisecond, accessToken,solutionId,typeofSolution)
+        if not pointBasedValue.lower() == "null":
+            bodySolutionUpdate = {"isRubricDriven": True}
+            solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+            fetchSolutionCriteria(parentFolder, observationExternalId, accessToken)
+            uploadCriteriaRubrics(parentFolder, wbObservation, millisecond, accessToken, frameworkExternalId, True)
+            uploadThemeRubrics(parentFolder, wbObservation, accessToken, frameworkExternalId, True)
+        else:
+            print("Observation with scoring system : null.")
+        bodySolutionUpdate = {'allowMultipleAssessemts': allow_multiple_submissions, "creator": creator}
+        solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        # solutionDetails = fetchSolutionDetailsFromProgramSheet(parentFolder, programFile, solutionId, accessToken)
+        # if solutionDetails[1]:
+        #     startDateArr = str(solutionDetails[1]).split("-")
+        #     bodySolutionUpdate = {
+        #         "startDate": startDateArr[2] + "-" + startDateArr[1] + "-" + startDateArr[0] + "T00:00:00.000Z"}
+        #     solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        # if solutionDetails[2]:
+        #     endDateArr = str(solutionDetails[2]).split("-")
+        #     bodySolutionUpdate = {
+        #         "endDate": endDateArr[2] + "-" + endDateArr[1] + "-" + endDateArr[0] + "T23:59:59.000Z"}
+        #     solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        # if isProgramnamePresent:
+        childId = createChild(parentFolder, observationExternalId, accessToken)
+        if childId[0]:
+            # solutionDetails = fetchSolutionDetailsFromProgramSheet(parentFolder, programFile, childId[0],
+            #                                                         accessToken)
+            print(6666666666666666666666)
+            recommendedForArr = str(recommendedFor).split(",") if str(recommendedFor).split(",") else []
+            scopeEntitiesArr = str(scopeEntities).split(",") if str(scopeEntities).split(",") else []
+            scopeRolesArr = str(scopeRoles).split(",") if str(scopeRoles).split(",") else []
+            ObservationSolutionCreationReqBody["scope"] = {"entityType": scopeEntityType, "entities": scopeEntitiesArr, "roles": scopeRolesArr, "recommendedFor": recommendedForArr}
+            if startDateOfResource:
+                startDateArr = str(startDateOfResource).split("-")
+                ObservationSolutionCreationReqBody["startDate"] = startDateArr[2] + "-" + startDateArr[1] + "-" + startDateArr[0] + "T00:00:00.000Z"
+            if endDateOfResource:
+                endDateArr = str(endDateOfResource).split("-")
+                ObservationSolutionCreationReqBody["endDate"] = endDateArr[2] + "-" + endDateArr[1] + "-" + endDateArr[0] + "T23:59:59.000Z"
+                bodySolutionUpdate = {"startDate": ObservationSolutionCreationReqBody["startDate"], "endDate" : ObservationSolutionCreationReqBody["endDate"], "scope" : ObservationSolutionCreationReqBody["scope"] }
+                solutionUpdate(parentFolder, accessToken, childId[0], bodySolutionUpdate)
+            prepareSolutionSuccessSheet(MainFilePath, parentFolder, childId[1], childId[0],
+                                        accessToken)
+    # else:
+    #     print("No program name detected.")
+    elif typeofSolution == 2:
+        ObservationSolutionCreationReqBody = {}
+        criteriaUpload(parentFolder, wbObservation, millisecond, accessToken, "criteria", False)
+    
+        
+        frameworkExternalId = frameWorkUpload(parentFolder, wbObservation, millisecond, accessToken)
+        observationExternalId = frameworkExternalId + "-OBSERVATION-TEMPLATE"
+        themesUpload(parentFolder, wbObservation, millisecond, accessToken, frameworkExternalId, True)
+        solutionId = createSolutionFromFramework(parentFolder, accessToken, frameworkExternalId)
+        sectionsObj = {"sections": {'S1': 'Observation Question'}}
+        solutionUpdate(parentFolder, accessToken, solutionId, sectionsObj)
+        ecmObj = {}
+        ecmExternalId = None
+        ecmObj = {
+            "evidenceMethods": {'OB': {'externalId': 'OB', 'tip': None, 'name': 'Observation', 'description': None,
+                                        'modeOfCollection': 'onfield', 'canBeNotApplicable': False,
+                                        'notApplicable': False, 'canBeNotAllowed': False, 'remarks': None}}}
+        solutionUpdate(parentFolder, accessToken, solutionId, ecmObj)
+        questionUpload(addObservationSolution, parentFolder, frameworkExternalId, millisecond, accessToken,
+                        solutionId, typeofSolution)
+        fetchSolutionCriteria(parentFolder, observationExternalId, accessToken)
+        if not pointBasedValue.lower() == "null":
+            uploadCriteriaRubrics(parentFolder, wbObservation, millisecond, accessToken, frameworkExternalId, False)
+            uploadThemeRubrics(parentFolder, wbObservation, accessToken, frameworkExternalId, False)
+        bodySolutionUpdate = {"status": "active", "isDeleted": False, "allowMultipleAssessemts": True,
+                                "creator": creator}
+        solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        # If solution Start and end Date are required
+        # solutionDetails = fetchSolutionDetailsFromProgramSheet(parentFolder, solutionId, accessToken)
+        # if solutionDetails[1]:
+        #     startDateArr = str(solutionDetails[1]).split("-")
+        #     bodySolutionUpdate = {
+        #         "startDate": startDateArr[2] + "-" + startDateArr[1] + "-" + startDateArr[0] + "T00:00:00.000Z"}
+        #     solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        # if solutionDetails[2]:
+        #     endDateArr = str(solutionDetails[2]).split("-")
+        #     bodySolutionUpdate = {
+        #         "endDate": endDateArr[2] + "-" + endDateArr[1] + "-" + endDateArr[0] + "T23:59:59.000Z"}
+        #     solutionUpdate(parentFolder, accessToken, solutionId, bodySolutionUpdate)
+        childId = createChild(parentFolder, observationExternalId, accessToken)
+        if childId[0]:
+            # solutionDetails = fetchSolutionDetailsFromProgramSheet(parentFolder, programFile, childId[0],
+                                                                    # accessToken)
+            print(6666666666666666666666)
+            recommendedForArr = str(recommendedFor).split(",") if str(recommendedFor).split(",") else []
+            scopeEntitiesArr = str(scopeEntities).split(",") if str(scopeEntities).split(",") else []
+            scopeRolesArr = str(scopeRoles).split(",") if str(scopeRoles).split(",") else []
+            ObservationSolutionCreationReqBody["scope"] = {"entityType": scopeEntityType, "entities": scopeEntitiesArr, "roles": scopeRolesArr, "recommendedFor": recommendedForArr}
+            if startDateOfResource:
+                startDateArr = str(startDateOfResource).split("-")
+                ObservationSolutionCreationReqBody["startDate"] = startDateArr[2] + "-" + startDateArr[1] + "-" + startDateArr[0] + "T00:00:00.000Z"
+            if endDateOfResource:
+                endDateArr = str(endDateOfResource).split("-")
+                ObservationSolutionCreationReqBody["endDate"] = endDateArr[2] + "-" + endDateArr[1] + "-" + endDateArr[0] + "T23:59:59.000Z"
+                bodySolutionUpdate = {"startDate": ObservationSolutionCreationReqBody["startDate"], "endDate" : ObservationSolutionCreationReqBody["endDate"], "scope" : ObservationSolutionCreationReqBody["scope"]}
+                solutionUpdate(parentFolder, accessToken, childId[0], bodySolutionUpdate)
+            prepareSolutionSuccessSheet(MainFilePath, parentFolder, childId[1], childId[0],
+                                        accessToken)
+   
+
+    elif typeofSolution == 3:
+        surveyResp = createSurveySolution(parentFolder, wbObservation, accessToken)
+        surTempExtID = surveyResp[1]
+        bodySolutionUpdate = {"status": "active", "isDeleted": False}
+        solutionUpdate(parentFolder, accessToken, surveyResp[0], bodySolutionUpdate)
+
+        uploadSurveyQuestions(parentFolder, wbObservation, addObservationSolution, accessToken, surTempExtID,
+                                surveyResp[0], millisecond)
+    elif typeofSolution == 4:
+        wbprogram = xlrd.open_workbook(programFile, on_demand=True)
+        programSheetNames = wbprogram.sheet_names()
+
+        wbproject = xlrd.open_workbook(addObservationSolution, on_demand=True)
+        projectSheetNames = wbproject.sheet_names()
+        for programSheets in programSheetNames:
+            if programSheets.strip().lower() == 'program details':
+                print("Checking program details sheet...")
+                programDetailsSheet = wbprogram.sheet_by_name(programSheets)
+                keysEnv = [programDetailsSheet.cell(1, col_index_env).value for col_index_env in
+                            range(programDetailsSheet.ncols)]
+                for row_index_env in range(2, programDetailsSheet.nrows):
+                    dictProgramDetails = {
+                        keysEnv[col_index_env]: programDetailsSheet.cell(row_index_env, col_index_env).value
+                        for col_index_env in range(programDetailsSheet.ncols)}
+                    programName = dictProgramDetails['Title of the Program'].encode('utf-8').decode('utf-8')
+                    isProgramnamePresent = False
+                    if programName == "":
+                        isProgramnamePresent = False
+                    else:
+                        isProgramnamePresent = True
+                    print(programName)
+                    scopeEntityType = scopeEntityType
+                    print(scopeEntityType)
+                    userEntity = dictProgramDetails['Targeted state at program level'].encode('utf-8').decode('utf-8').lstrip().rstrip().split(",") if dictProgramDetails['Targeted state at program level'] else terminatingMessage("\"scope_entity\" must not be Empty in \"details\" sheet")
+                    
+        for sheets in projectSheetNames:
+            if sheets.strip().lower() == 'Project upload'.lower():
+                print("Checking project upload sheet...")
+                projectsheet = wbproject.sheet_by_name(sheets)
+                keysEnv = [projectsheet.cell(1, col_index_env).value for col_index_env in
+                            range(projectsheet.ncols)]
+                for row_index_env in range(1, projectsheet.nrows):
+                    projectDetails = {keysEnv[col_index_env]: projectsheet.cell(row_index_env, col_index_env).value
+                                        for col_index_env in range(projectsheet.ncols)}
+
+                    ProjectName = projectDetails["title"].encode('utf-8').decode('utf-8')
+                    print(ProjectName)
+                    entityType = "school"
+
+        try:
+            def addProjectFunc(filePathAddProject, projectName_for_folder_path, millisAddObs,validateSheets):
+                print('Add Project Function Called')
+                try:
+                    config.get(environment, 'internal-access-token')
+                except:
+                    print("Invalid Environment...")
+                    sys.exit()
+
+                projectName_for_folder = None
+                
+                if not path.exists(projectName_for_folder_path):
+                    os.mkdir(projectName_for_folder_path)
+
+                # copy input file to drive file
+                if not path.exists(projectName_for_folder_path + "/user_input_file"):
+                    os.mkdir(projectName_for_folder_path + "/user_input_file")
+
+                shutil.copy(filePathAddProject, projectName_for_folder_path + "/user_input_file")
+                shutil.copy(programFile, projectName_for_folder_path + "/user_input_file")
+                messageArr = ["Access token generated.", "Access token : " + accessToken, "Solution file created.",
+                                "Path : " + projectName_for_folder_path]
+                createAPILog(projectName_for_folder_path, messageArr)
+
+                wbproject = xlrd.open_workbook(filePathAddProject, on_demand=True)
+                projectsheetforcertificate = wbproject.sheet_names()
+                for prosheet in projectsheetforcertificate:
+                    if prosheet.strip().lower() == 'Project upload'.lower():
+                        detailsColCheck = wbproject.sheet_by_name(prosheet)
+                        keysColCheckDetai = [detailsColCheck.cell(0, col_index_check).value for col_index_check in
+                                                range(detailsColCheck.ncols)]
+
+                        detailsEnvSheet = wbproject.sheet_by_name(prosheet)
+                        keysEnv = [detailsEnvSheet.cell(1, col_index_env).value for col_index_env in
+                                    range(detailsEnvSheet.ncols)]
+                        for row_index_env in range(2, detailsEnvSheet.nrows):
+                            # print(dictDetailsEnv)
+                            # sys.exit()
+                            dictDetailsEnv = {
+                                keysEnv[col_index_env]: detailsEnvSheet.cell(row_index_env, col_index_env).value
+                                for
+                                col_index_env in range(detailsEnvSheet.ncols)}
+                            if str(dictDetailsEnv['has certificate']).lower() == 'No'.lower():
+                                prepareProjectAndTasksSheets(addObservationSolution, projectName_for_folder_path,
+                                                                accessToken)
+                                # sys.exit()
+                                projectUpload(addObservationSolution, projectName_for_folder_path, accessToken)
+                                taskUpload(addObservationSolution, projectName_for_folder_path, accessToken)
+                                ProjectSolutionResp = solutionCreationAndMapping(projectName_for_folder_path,
+                                                                                    entityToUpload,
+                                                                                    listOfFoundRoles, accessToken)
+                                ProjectSolutionExternalId = ProjectSolutionResp[0]
+                                ProjectSolutionId = ProjectSolutionResp[1]
+                                prepareProgramSuccessSheet(MainFilePath, projectName_for_folder_path, programFile,
+                                                            ProjectSolutionExternalId,
+                                                            ProjectSolutionId, accessToken)
+                            elif str(dictDetailsEnv['has certificate']).lower()== 'Yes'.lower():
+                                print(str(dictDetailsEnv['has certificate']).lower()== 'Yes'.lower())
+                                print(str(dictDetailsEnv['has certificate']))
+                                print("---->this is certificate with project<---")
+                                baseTemplate_id=fetchCertificateBaseTemplate(filePathAddProject,accessToken,projectName_for_folder_path)
+                                print(baseTemplate_id)
+                                # sys.exit()
+                                downloadlogosign(filePathAddProject,projectName_for_folder_path)
+                                editsvg(accessToken,filePathAddProject,projectName_for_folder_path,baseTemplate_id)
+                                prepareProjectAndTasksSheets(addObservationSolution, projectName_for_folder_path,accessToken)
+                                projectUpload(addObservationSolution, projectName_for_folder_path, accessToken)
+                                taskUpload(addObservationSolution, projectName_for_folder_path, accessToken)
+                                ProjectSolutionResp = solutionCreationAndMapping(projectName_for_folder_path,entityToUpload,listOfFoundRoles, accessToken)
+                                ProjectSolutionExternalId = ProjectSolutionResp[0]
+                                ProjectSolutionId = ProjectSolutionResp[1]
+                                certificatetemplateid= prepareaddingcertificatetemp(filePathAddProject,projectName_for_folder_path, accessToken,ProjectSolutionId,programID,baseTemplate_id)
+
+                                prepareProgramSuccessSheet(MainFilePath, projectName_for_folder_path, programFile,
+                                                            ProjectSolutionExternalId,
+                                                            ProjectSolutionId, accessToken)
+
+        except:
+            print("Terminated")
+
+        millisecond = int(time.time() * 1000)
+
+        addProjectFunc(addObservationSolution, parentFolder, millisecond,validateSheets)
+        print("Done.")
+
+
 def createFileStructForSolution(solutionFile):
     if not os.path.isdir('resourceFile'):
         os.mkdir('resourceFile')
@@ -4518,3 +4814,29 @@ def createFileStructForSolution(solutionFile):
     returnPathStr = os.path.join('resourceFile', str(folderName))
 
     return returnPathStr
+#main execution
+start_time = time.time()
+parser = argparse.ArgumentParser()
+parser.add_argument('--programFile', '--programFile', type=valid_file)
+parser.add_argument('--env', '--env')
+parser.add_argument('--resourceLinkOrExtPGM', required=True, help='The resource link')
+argument = parser.parse_args()
+environment = argument.env
+millisecond = int(time.time() * 1000)
+
+if envCheck():
+    print("=================== Environment set to " + str(environment) + "=====================")
+else:
+    terminatingMessage(str(environment) + " is an invalid environment")
+resourceLinkOrExtPGM = str(argument.resourceLinkOrExtPGM).split('/')[5]
+file_url = 'https://docs.google.com/spreadsheets/d/' + resourceLinkOrExtPGM + '/export?format=xlsx'
+if not os.path.isdir('InputFiles'):
+    os.mkdir('InputFiles')
+dest_file = 'InputFiles'
+# addObservationSolution = "InputFiles/CopyofSurveyuploadTemplate.xlsx"
+addObservationSolution = wget.download(file_url, dest_file)
+print("--->solution input file successfully downloaded" + str(addObservationSolution))
+MainFilePath = createFileStructForSolution(addObservationSolution.split("/")[1])
+mainFunc(MainFilePath,addObservationSolution, millisecond)                 
+end_time = time.time()
+print("Execution time in sec : " + str(end_time - start_time))
