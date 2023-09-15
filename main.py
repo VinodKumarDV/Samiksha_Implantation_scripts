@@ -1104,6 +1104,7 @@ def validateSheets(filePathAddObs, accessToken, parentFolder):
 
     return typeofSolution
 
+
 # function to upload criteria 
 def criteriaUpload(solutionName_for_folder_path, wbObservation, millisAddObs, accessToken, tabName, projectDrivenFlag):
     criteriaColNames = ["criteriaId", "criteria_name"]
