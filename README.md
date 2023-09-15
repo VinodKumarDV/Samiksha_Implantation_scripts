@@ -28,4 +28,4 @@ Python script to upload a program and add multiple resources like Projects , Sur
 - Download the user given template and save it in the same file where the code is hosted.
 - update google sheet link in on main.py file on line 4788
 - Command to run the script.
-  ` python3 main.py`
+  `python3  File_name_of_script  --env envName --resourceLinkOrExtPGM Sheet_link`
